@@ -32,6 +32,30 @@ HISTORY_MAX_SAMPLES = 120000
 PUSH_SERVICE_GUID = uuid.UUID(hex="d8895bfd0461400dbd52dbe2a3c33021")
 RECORDINGS_DIR = Path(__file__).resolve().with_name("recordings")
 
+ALL_SENSORS = (
+    Sensor.HeartRate,
+    Sensor.RRInterval,
+    Sensor.Gsr,
+    Sensor.Gsr200MS,
+    Sensor.SkinTemperature,
+    Sensor.Accelerometer32MS,
+    Sensor.AccelerometerGyroscope32MS,
+    Sensor.DeviceContact,
+    Sensor.BatteryGauge,
+    Sensor.Pedometer,
+    Sensor.PedometerWithDailyValues,
+    Sensor.Distance,
+    Sensor.DistanceWithDailyValues,
+    Sensor.Calories1S,
+    Sensor.UV,
+    Sensor.AmbientLight,
+    Sensor.AmbientLightWithDailyValues,
+    Sensor.Barometer,
+    Sensor.Elevation,
+    Sensor.ElevationWithDailyValues,
+)
+SENSOR_BY_NAME = {s.name: s for s in ALL_SENSORS}
+
 
 HTML = r"""<!doctype html>
 <html lang="en">
@@ -370,6 +394,90 @@ HTML = r"""<!doctype html>
       .metrics { grid-template-columns: 1fr; }
       canvas { height: 300px; }
     }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .72);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal {
+      background: var(--panel-strong);
+      border: 1px solid rgba(145, 176, 206, .2);
+      border-radius: 10px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, .55);
+      width: min(540px, calc(100vw - 32px));
+      max-height: calc(100vh - 64px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .modal-head h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .modal-head button {
+      height: 28px;
+      width: 28px;
+      padding: 0;
+      border-color: transparent;
+    }
+
+    .modal-body {
+      overflow-y: auto;
+      padding: 14px 18px;
+      flex: 1;
+    }
+
+    .sensor-group { margin-bottom: 14px; }
+
+    .sensor-group-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .sensor-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(145, 176, 206, .06);
+    }
+
+    .sensor-row label { cursor: pointer; flex: 1; font-size: 13px; }
+
+    .sensor-row input[type=checkbox] {
+      accent-color: var(--blue);
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+
+    .modal-footer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px;
+      border-top: 1px solid var(--line);
+      justify-content: flex-end;
+    }
   </style>
 </head>
 <body>
@@ -381,6 +489,7 @@ HTML = r"""<!doctype html>
       <span id="updated">No samples yet</span>
       <span id="recording-status">Not recording</span>
       <input class="recording-name" id="recording-name" type="text" value="">
+      <button id="connect-btn">Iniciar conexion</button>
       <button class="primary" id="record-start">Iniciar sesion</button>
       <button id="record-stop">Detener grabacion</button>
     </div>
@@ -388,82 +497,82 @@ HTML = r"""<!doctype html>
 
   <main>
     <section class="metrics">
-      <article class="metric">
+      <article class="metric" data-sensors="HeartRate">
         <div class="label">Heart Rate</div>
         <div><span class="value" id="bpm">--</span> <span class="unit">bpm</span></div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="RRInterval">
         <div class="label">RR Interval</div>
         <div><span class="value" id="rr">--</span> <span class="unit">ms</span></div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="RRInterval">
         <div class="label">RMSSD</div>
         <div><span class="value" id="rmssd">--</span> <span class="unit">ms</span></div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="Gsr">
         <div class="label">GSR</div>
         <div><span class="value" id="gsr">--</span> <span class="unit">kOhm</span></div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="SkinTemperature">
         <div class="label">Skin Temp</div>
         <div><span class="value" id="temp">--</span> <span class="unit">C</span></div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="Accelerometer32MS,AccelerometerGyroscope32MS">
         <div class="label">Motion</div>
         <div><span class="value" id="accel">--</span> <span class="unit">g</span></div>
         <div class="subvalue" id="accel-axes">x -- · y -- · z --</div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="AccelerometerGyroscope32MS">
         <div class="label">Gyro</div>
         <div><span class="value" id="gyro">--</span> <span class="unit">dps</span></div>
         <div class="subvalue" id="gyro-axes">x -- · y -- · z --</div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="DeviceContact">
         <div class="label">Wearing</div>
         <div><span class="value" id="contact">--</span></div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="DeviceContact">
         <div class="label">Band Conn</div>
         <div><span class="value" id="band-connected">--</span></div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="BatteryGauge">
         <div class="label">Battery</div>
         <div><span class="value" id="battery">--</span> <span class="unit">%</span></div>
         <div class="subvalue" id="battery-voltage">-- mV</div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="Pedometer,PedometerWithDailyValues">
         <div class="label">Steps</div>
         <div><span class="value" id="steps">--</span></div>
         <div class="subvalue" id="steps-today">today --</div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="Distance,DistanceWithDailyValues">
         <div class="label">Distance</div>
         <div><span class="value" id="distance">--</span> <span class="unit">m</span></div>
         <div class="subvalue" id="pace">pace -- · speed --</div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="Calories1S">
         <div class="label">Calories</div>
         <div><span class="value" id="calories">--</span> <span class="unit">cal</span></div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="UV">
         <div class="label">UV</div>
         <div><span class="value" id="uv">--</span></div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="AmbientLight,AmbientLightWithDailyValues">
         <div class="label">Ambient</div>
         <div><span class="value" id="ambient">--</span> <span class="unit">lx</span></div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="Barometer">
         <div class="label">Barometer</div>
         <div><span class="value" id="pressure">--</span> <span class="unit">hPa</span></div>
         <div class="subvalue" id="baro-temp">temp -- C</div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="Elevation,ElevationWithDailyValues">
         <div class="label">Elevation</div>
         <div><span class="value" id="elevation">--</span> <span class="unit">m gain</span></div>
         <div class="subvalue" id="elevation-detail">loss -- · rate --</div>
       </article>
-      <article class="metric">
+      <article class="metric" data-sensors="Gsr200MS">
         <div class="label">GSR 200ms</div>
         <div><span class="value" id="gsr-fast">--</span> <span class="unit">kOhm</span></div>
       </article>
@@ -475,19 +584,19 @@ HTML = r"""<!doctype html>
           <div class="panel-title" id="chart-title">Heart Rate</div>
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
             <div class="tabs">
-              <button class="active" data-series="bpm">BPM</button>
-              <button data-series="rr_ms">RR</button>
-              <button data-series="rmssd_ms">HRV</button>
-              <button data-series="gsr_kohm">GSR</button>
-              <button data-series="skin_temp_c">Temp</button>
-              <button data-series="accel_mag_g">Accel</button>
-              <button data-series="gyro_mag_dps">Gyro</button>
-              <button data-series="steps">Steps</button>
-              <button data-series="battery_pct">Battery</button>
-              <button data-series="ambient_light">Light</button>
-              <button data-series="barometer_hpa">Pressure</button>
-              <button data-series="elevation_gain_m">Elev</button>
-              <button data-series="gsr_200ms_kohm">GSR 200</button>
+              <button class="active" data-series="bpm" data-sensors="HeartRate">BPM</button>
+              <button data-series="rr_ms" data-sensors="RRInterval">RR</button>
+              <button data-series="rmssd_ms" data-sensors="RRInterval">HRV</button>
+              <button data-series="gsr_kohm" data-sensors="Gsr">GSR</button>
+              <button data-series="skin_temp_c" data-sensors="SkinTemperature">Temp</button>
+              <button data-series="accel_mag_g" data-sensors="Accelerometer32MS,AccelerometerGyroscope32MS">Accel</button>
+              <button data-series="gyro_mag_dps" data-sensors="AccelerometerGyroscope32MS">Gyro</button>
+              <button data-series="steps" data-sensors="Pedometer,PedometerWithDailyValues">Steps</button>
+              <button data-series="battery_pct" data-sensors="BatteryGauge">Battery</button>
+              <button data-series="ambient_light" data-sensors="AmbientLight,AmbientLightWithDailyValues">Light</button>
+              <button data-series="barometer_hpa" data-sensors="Barometer">Pressure</button>
+              <button data-series="elevation_gain_m" data-sensors="Elevation,ElevationWithDailyValues">Elev</button>
+              <button data-series="gsr_200ms_kohm" data-sensors="Gsr200MS">GSR 200</button>
             </div>
             <div class="range-controls">
               <button class="active" data-window="10">10s</button>
@@ -504,7 +613,45 @@ HTML = r"""<!doctype html>
     <p class="error-text" id="error"></p>
   </main>
 
+  <div id="sensor-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>Sensores a suscribir</h2>
+        <button id="modal-close">&#x2715;</button>
+      </div>
+      <div class="modal-body" id="sensor-list"></div>
+      <div class="modal-footer">
+        <button id="select-all-btn">Todos</button>
+        <button id="select-none-btn">Ninguno</button>
+        <button class="primary" id="modal-start-btn">Iniciar</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    const SENSOR_OPTIONS = [
+      { name: "HeartRate", label: "Heart Rate", group: "Cardíaco" },
+      { name: "RRInterval", label: "RR Interval (HRV)", group: "Cardíaco" },
+      { name: "Gsr", label: "GSR (galvánico)", group: "Piel" },
+      { name: "Gsr200MS", label: "GSR 200ms", group: "Piel" },
+      { name: "SkinTemperature", label: "Temperatura cutánea", group: "Piel" },
+      { name: "Accelerometer32MS", label: "Acelerómetro", group: "Movimiento" },
+      { name: "AccelerometerGyroscope32MS", label: "Accel + Giroscopio", group: "Movimiento" },
+      { name: "DeviceContact", label: "Contacto con piel", group: "Dispositivo" },
+      { name: "BatteryGauge", label: "Batería", group: "Dispositivo" },
+      { name: "Pedometer", label: "Podómetro", group: "Actividad" },
+      { name: "PedometerWithDailyValues", label: "Podómetro (diario)", group: "Actividad" },
+      { name: "Distance", label: "Distancia", group: "Actividad" },
+      { name: "DistanceWithDailyValues", label: "Distancia (diaria)", group: "Actividad" },
+      { name: "Calories1S", label: "Calorías", group: "Actividad" },
+      { name: "UV", label: "UV", group: "Ambiente" },
+      { name: "AmbientLight", label: "Luz ambiente", group: "Ambiente" },
+      { name: "AmbientLightWithDailyValues", label: "Luz ambiente (diaria)", group: "Ambiente" },
+      { name: "Barometer", label: "Barómetro", group: "Ambiente" },
+      { name: "Elevation", label: "Elevación", group: "Ambiente" },
+      { name: "ElevationWithDailyValues", label: "Elevación (diaria)", group: "Ambiente" },
+    ];
+
     const state = {
       series: "bpm",
       windowSeconds: 10,
@@ -514,6 +661,7 @@ HTML = r"""<!doctype html>
       recordingFile: null,
       wearing: null,
       bandConnected: null,
+      selectedSensors: null,
       labels: {
         bpm: ["Heart Rate", "bpm", "#1f6feb"],
         rr_ms: ["RR Interval", "ms", "#087f8c"],
@@ -722,6 +870,11 @@ HTML = r"""<!doctype html>
         $("updated").textContent = new Date(data.updated_at * 1000).toLocaleTimeString();
       }
 
+      if (Array.isArray(data.selected_sensors)) {
+        state.selectedSensors = data.selected_sensors;
+        updateSensorVisibility();
+      }
+
       if (Array.isArray(data.history)) {
         state.history = data.history;
         trimHistory();
@@ -885,6 +1038,29 @@ HTML = r"""<!doctype html>
       return `${seconds}s`;
     }
 
+    function updateSensorVisibility() {
+      const selected = state.selectedSensors;
+      if (!Array.isArray(selected)) return;
+      document.querySelectorAll(".metric[data-sensors]").forEach((card) => {
+        const sensors = card.dataset.sensors.split(",");
+        card.style.display = sensors.some((s) => selected.includes(s)) ? "" : "none";
+      });
+      let activeVisible = false;
+      let firstVisible = null;
+      document.querySelectorAll(".tabs button[data-sensors]").forEach((btn) => {
+        const sensors = btn.dataset.sensors.split(",");
+        const visible = sensors.some((s) => selected.includes(s));
+        btn.style.display = visible ? "" : "none";
+        if (visible && !firstVisible) firstVisible = btn;
+        if (btn.classList.contains("active") && visible) activeVisible = true;
+      });
+      if (!activeVisible && firstVisible) {
+        document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
+        firstVisible.classList.add("active");
+        state.series = firstVisible.dataset.series;
+      }
+    }
+
     document.querySelectorAll(".tabs button").forEach((btn) => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
@@ -901,6 +1077,71 @@ HTML = r"""<!doctype html>
         state.windowSeconds = Number(btn.dataset.window);
         drawChart();
       });
+    });
+
+    function openSensorModal() {
+      const selected = state.selectedSensors || SENSOR_OPTIONS.map((s) => s.name);
+      const groups = {};
+      SENSOR_OPTIONS.forEach((s) => {
+        if (!groups[s.group]) groups[s.group] = [];
+        groups[s.group].push(s);
+      });
+      const container = $("sensor-list");
+      container.innerHTML = "";
+      Object.entries(groups).forEach(([group, sensors]) => {
+        const div = document.createElement("div");
+        div.className = "sensor-group";
+        const title = document.createElement("div");
+        title.className = "sensor-group-title";
+        title.textContent = group;
+        div.appendChild(title);
+        sensors.forEach((s) => {
+          const row = document.createElement("div");
+          row.className = "sensor-row";
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.id = `sensor-${s.name}`;
+          cb.name = s.name;
+          cb.checked = selected.includes(s.name);
+          const lbl = document.createElement("label");
+          lbl.htmlFor = `sensor-${s.name}`;
+          lbl.textContent = s.label;
+          row.appendChild(cb);
+          row.appendChild(lbl);
+          div.appendChild(row);
+        });
+        container.appendChild(div);
+      });
+      $("sensor-modal").style.display = "flex";
+    }
+
+    function closeSensorModal() {
+      $("sensor-modal").style.display = "none";
+    }
+
+    function getCheckedSensors() {
+      return SENSOR_OPTIONS
+        .filter((s) => { const el = document.getElementById(`sensor-${s.name}`); return el && el.checked; })
+        .map((s) => s.name);
+    }
+
+    $("connect-btn").addEventListener("click", openSensorModal);
+    $("modal-close").addEventListener("click", closeSensorModal);
+    $("sensor-modal").addEventListener("click", (e) => { if (e.target === $("sensor-modal")) closeSensorModal(); });
+    $("select-all-btn").addEventListener("click", () => {
+      SENSOR_OPTIONS.forEach((s) => { const el = document.getElementById(`sensor-${s.name}`); if (el) el.checked = true; });
+    });
+    $("select-none-btn").addEventListener("click", () => {
+      SENSOR_OPTIONS.forEach((s) => { const el = document.getElementById(`sensor-${s.name}`); if (el) el.checked = false; });
+    });
+    $("modal-start-btn").addEventListener("click", () => {
+      const sensors = getCheckedSensors();
+      fetch("/api/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sensors })
+      });
+      closeSensorModal();
     });
 
     $("record-start").addEventListener("click", () => {
@@ -920,6 +1161,8 @@ HTML = r"""<!doctype html>
       $("status").textContent = "event stream disconnected";
       $("dot").className = "status-dot error";
     };
+
+    openSensorModal();
   </script>
 </body>
 </html>
@@ -974,9 +1217,16 @@ def subscribe(cargo, sensor):
     cargo_command(cargo, packet, transfer=transfer)
 
 
+def unsubscribe(cargo, sensor):
+    transfer = bytes([int(sensor)]) + b"\x00\x00\x00\x00" + PUSH_SERVICE_GUID.bytes_le
+    packet = make_packet(0x8F08, data_length=len(transfer))
+    cargo_command(cargo, packet, transfer=transfer)
+
+
 class BandCollector:
     def __init__(self, address):
         self.address = address
+        self.selected_sensors = list(ALL_SENSORS)
         self.lock = threading.RLock()
         self.clients = []
         self.thread = None
@@ -1065,6 +1315,7 @@ class BandCollector:
             data["band_connection_gaps"] = list(self.band_connection_gaps)
             data["wearing_gaps"] = list(self.wearing_gaps)
             data["connection_state"] = self.state["connection_state"]
+            data["selected_sensors"] = [s.name for s in self.selected_sensors]
             return data
 
     def set_status(self, status, error=None):
@@ -1375,12 +1626,63 @@ class BandCollector:
             except queue.Full:
                 pass
 
-    def start(self):
+    def start(self, sensors=None):
+        if sensors is not None:
+            with self.lock:
+                self.selected_sensors = list(sensors)
         if self.thread and self.thread.is_alive():
             return
         self.stop_event.clear()
         self.thread = threading.Thread(target=self.run, daemon=True)
         self.thread.start()
+
+    def _reset_sensor_state_locked(self):
+        for key in [
+            "bpm", "rr_ms", "rmssd_ms", "gsr_kohm", "skin_temp_c",
+            "accel_x_g", "accel_y_g", "accel_z_g", "accel_mag_g",
+            "gyro_x_dps", "gyro_y_dps", "gyro_z_dps", "gyro_mag_dps",
+            "wearing", "band_connected", "battery_pct", "battery_voltage_mv",
+            "battery_alerts", "steps", "steps_today", "distance_m",
+            "speed_mps", "pace", "motion", "calories", "uv_level",
+            "ambient_light", "barometer_hpa", "barometer_temp_c",
+            "elevation_altitude_m", "elevation_gain_m", "elevation_loss_m",
+            "elevation_stepping_gain_m", "elevation_stepping_loss_m",
+            "elevation_steps_ascended", "elevation_steps_descended",
+            "elevation_rate_cms", "elevation_flights_ascended",
+            "elevation_flights_descended", "elevation_flights_ascended_today",
+            "elevation_gain_today_m", "gsr_200ms_kohm", "updated_at",
+        ]:
+            self.state[key] = None
+        self.rr_buffer.clear()
+        self.history.clear()
+
+    def _do_restart(self, sensors=None):
+        if sensors is not None:
+            with self.lock:
+                self.selected_sensors = list(sensors)
+        self.stop_event.set()
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=8)
+        self.stop_event.clear()
+        with self.lock:
+            self.state["connection_state"] = "stopped"
+            self.state["status"] = "stopped"
+            self._reset_sensor_state_locked()
+            data = self.snapshot(include_history=True)
+            clients = list(self.clients)
+        for client in clients:
+            try:
+                if client.full():
+                    client.get_nowait()
+                client.put_nowait(data)
+            except queue.Full:
+                pass
+        self.thread = threading.Thread(target=self.run, daemon=True)
+        self.thread.start()
+
+    def restart(self, sensors=None):
+        t = threading.Thread(target=self._do_restart, args=(sensors,), daemon=True)
+        t.start()
 
     def stop(self):
         self.stop_event.set()
@@ -1578,39 +1880,23 @@ class BandCollector:
                 self.update_sensor(decode_sensor_reading(legacy_packet))
 
     def run(self):
-        sensors = (
-            Sensor.HeartRate,
-            Sensor.RRInterval,
-            Sensor.Gsr,
-            Sensor.Gsr200MS,
-            Sensor.SkinTemperature,
-            Sensor.Accelerometer32MS,
-            Sensor.AccelerometerGyroscope32MS,
-            Sensor.DeviceContact,
-            Sensor.BatteryGauge,
-            Sensor.Pedometer,
-            Sensor.PedometerWithDailyValues,
-            Sensor.Distance,
-            Sensor.DistanceWithDailyValues,
-            Sensor.Calories1S,
-            Sensor.UV,
-            Sensor.AmbientLight,
-            Sensor.AmbientLightWithDailyValues,
-            Sensor.Barometer,
-            Sensor.Elevation,
-            Sensor.ElevationWithDailyValues,
-        )
-
         while not self.stop_event.is_set():
             cargo = None
             push = None
             failure = None
+            with self.lock:
+                sensors = list(self.selected_sensors)
             try:
                 self.set_connection_state("connecting")
                 cargo = connect_rfcomm(self.address, CARGO_PORT)
                 push = connect_rfcomm(self.address, PUSH_PORT)
                 push.settimeout(1.0)
 
+                for sensor in ALL_SENSORS:
+                    try:
+                        unsubscribe(cargo, sensor)
+                    except Exception:
+                        pass
                 for sensor in sensors:
                     try:
                         subscribe(cargo, sensor)
@@ -1709,7 +1995,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         if path == "/api/start":
-            self.collector.start()
+            content_length = int(self.headers.get("Content-Length", "0") or 0)
+            body = self.rfile.read(content_length) if content_length else b"{}"
+            try:
+                payload = json.loads(body.decode("utf-8"))
+            except Exception:
+                payload = {}
+            sensor_names = payload.get("sensors")
+            sensors = None
+            if sensor_names is not None:
+                sensors = [SENSOR_BY_NAME[n] for n in sensor_names if n in SENSOR_BY_NAME]
+            self.collector.restart(sensors=sensors)
             self.send_json({"ok": True})
             return
         if path == "/api/stop":
@@ -1738,15 +2034,11 @@ def main():
     parser.add_argument("address", nargs="?", default="58:82:A8:CE:4E:C8")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--no-auto-start", action="store_true")
     args = parser.parse_args()
 
     collector = BandCollector(args.address)
     DashboardHandler.collector = collector
     server = ThreadingHTTPServer((args.host, args.port), DashboardHandler)
-
-    if not args.no_auto_start:
-        collector.start()
 
     print(f"Dashboard: http://{args.host}:{args.port}")
     print(f"Band: {args.address}")
