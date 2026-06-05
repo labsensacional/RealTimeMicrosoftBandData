@@ -20,6 +20,6 @@ python3 polar_h9_dashboard.py [MAC_ADDRESS]   # auto-scans if no MAC given
 - RR filter: 300–2000ms range + 25% ectopic threshold
 
 ## Gotchas
-- Band 2 (RFCOMM) lives in `../RealTimePhysiologicalDataWithHackedMicrosoftBand/` with its own `libband/`
+- Band 2 (RFCOMM) lives in `../RealTimePhysiologicalData/` with its own `libband/`
 - Next planned: `../fusion_dashboard/` — fuses H9 (HR/HRV) + Band 2 (skin temp, GSR, accel/gyro)
 - Motion artifacts on H9 come from strap displacement, not dry electrodes — tighten strap + center module
